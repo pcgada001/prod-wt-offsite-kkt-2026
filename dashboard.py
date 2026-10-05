@@ -3,15 +3,9 @@
 # ============================================
 
 import pandas as pd
-from google.colab import files
 
-# Upload file Excel
-uploaded = files.upload()
+file_name = "Prod_Terkoreksi_WellTest (1).xlsx"
 
-# Ambil nama file yang di-upload
-file_name = list(uploaded.keys())[0]
-
-# Baca sheet Koreksi_Data
 df = pd.read_excel(
     file_name,
     sheet_name="Koreksi_Data",
