@@ -1,29 +1,59 @@
 # ============================================
-# LANGKAH 1 - MEMBACA FILE EXCEL
+# DASHBOARD PRODUCTION & WELL TEST
 # ============================================
 
+import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
+from pathlib import Path
 
-file_name = "Prod_Terkoreksi_WellTest (1).xlsx"
 
-df = pd.read_excel(
-    file_name,
-    sheet_name="Koreksi_Data",
-    header=5
+# ============================================
+# 1. PENGATURAN HALAMAN
+# ============================================
+
+st.set_page_config(
+    page_title="Production & Well Test Dashboard",
+    page_icon="📊",
+    layout="wide"
 )
 
-print("File berhasil dibaca!")
-print("Nama file :", file_name)
-print("Jumlah baris :", len(df))
-print("Jumlah kolom :", len(df.columns))
 
-# Tampilkan 5 baris pertama
-df.head()
 # ============================================
-# LANGKAH 2 - MERAPIKAN DATA
+# 2. CARI FILE EXCEL
 # ============================================
 
-# Buat nama kolom yang lebih mudah dipahami
+excel_files = list(Path(".").glob("*.xlsx"))
+
+if len(excel_files) == 0:
+    st.error("File Excel (.xlsx) tidak ditemukan di repository GitHub.")
+    st.stop()
+
+# Ambil file Excel pertama
+file_name = excel_files[0]
+
+
+# ============================================
+# 3. BACA EXCEL
+# ============================================
+
+try:
+    df = pd.read_excel(
+        file_name,
+        sheet_name="Koreksi_Data",
+        header=5
+    )
+
+except Exception as e:
+    st.error("Gagal membaca sheet 'Koreksi_Data'.")
+    st.exception(e)
+    st.stop()
+
+
+# ============================================
+# 4. RAPIKAN NAMA KOLOM
+# ============================================
+
 df = df.rename(columns={
     "Prod": "Oil_Prod",
     "WT": "Oil_WT",
@@ -48,58 +78,82 @@ df = df.rename(columns={
     "Hari/bulan": "Hari_Bulan"
 })
 
-# Pastikan kolom Bulan benar-benar bertipe tanggal
-df["Bulan"] = pd.to_datetime(df["Bulan"])
 
-# Urutkan berdasarkan Well dan Bulan
+# ============================================
+# 5. RAPIIKAN DATA TANGGAL
+# ============================================
+
+df["Bulan"] = pd.to_datetime(
+    df["Bulan"],
+    errors="coerce"
+)
+
 df = df.sort_values(
     by=["Well", "Bulan"]
 ).reset_index(drop=True)
 
-# Tampilkan informasi data
-print("Data berhasil dirapikan!")
-print()
-print("Jumlah Well :", df["Well"].nunique())
-print("Daftar Well :")
-print(df["Well"].unique())
-
-print()
-print("Periode data :")
-print(df["Bulan"].min(), "sampai", df["Bulan"].max())
-
-print()
-print("Ukuran DataFrame :", df.shape)
-
-# Tampilkan 5 baris pertama
-df.head()
 
 # ============================================
-# LANGKAH 3 - GRAFIK INTERAKTIF DENGAN PLOTLY
+# 6. JUDUL DASHBOARD
 # ============================================
 
-import plotly.graph_objects as go
+st.title("📊 Production & Well Test Dashboard")
 
-# Pilih Well
-selected_well = "KKA-1"
+st.write(
+    "Dashboard interaktif Production, Well Test, "
+    "dan Production Koreksi."
+)
 
-# Ambil data untuk Well yang dipilih
-df_well = df[df["Well"] == selected_well].copy()
 
-# Buat grafik
+# ============================================
+# 7. PILIH WELL
+# ============================================
+
+well_list = sorted(
+    df["Well"].dropna().unique()
+)
+
+selected_well = st.selectbox(
+    "Pilih Well",
+    well_list
+)
+
+
+# ============================================
+# 8. AMBIL DATA WELL
+# ============================================
+
+df_well = df[
+    df["Well"] == selected_well
+].copy()
+
+
+# ============================================
+# 9. BUAT GRAFIK
+# ============================================
+
 fig = go.Figure()
+
 
 # --------------------------------------------
 # Production
 # --------------------------------------------
+
 fig.add_trace(
     go.Scatter(
         x=df_well["Bulan"],
         y=df_well["Oil_Prod"],
         mode="lines+markers",
         name="Production",
+
         customdata=df_well[
-            ["Oil_WT", "Oil_Multiplier", "Oil_Prod_Koreksi"]
+            [
+                "Oil_WT",
+                "Oil_Multiplier",
+                "Oil_Prod_Koreksi"
+            ]
         ],
+
         hovertemplate=
             "<b>Tanggal:</b> %{x|%b-%Y}<br>"
             "<b>Production:</b> %{y:.2f}<br>"
@@ -110,15 +164,18 @@ fig.add_trace(
     )
 )
 
+
 # --------------------------------------------
 # Well Test
 # --------------------------------------------
+
 fig.add_trace(
     go.Scatter(
         x=df_well["Bulan"],
         y=df_well["Oil_WT"],
         mode="lines+markers",
         name="Well Test",
+
         hovertemplate=
             "<b>Tanggal:</b> %{x|%b-%Y}<br>"
             "<b>Well Test:</b> %{y:.2f}"
@@ -126,15 +183,18 @@ fig.add_trace(
     )
 )
 
+
 # --------------------------------------------
 # Production Koreksi
 # --------------------------------------------
+
 fig.add_trace(
     go.Scatter(
         x=df_well["Bulan"],
         y=df_well["Oil_Prod_Koreksi"],
         mode="lines+markers",
         name="Production Koreksi",
+
         hovertemplate=
             "<b>Tanggal:</b> %{x|%b-%Y}<br>"
             "<b>Production Koreksi:</b> %{y:.2f}"
@@ -142,17 +202,31 @@ fig.add_trace(
     )
 )
 
-# --------------------------------------------
-# Pengaturan tampilan
-# --------------------------------------------
+
+# ============================================
+# 10. PENGATURAN GRAFIK
+# ============================================
+
 fig.update_layout(
     title=f"Oil Production - {selected_well}",
+
     xaxis_title="Bulan",
+
     yaxis_title="Oil Rate",
+
     hovermode="x unified",
+
     template="plotly_white",
+
     height=600
 )
 
-# Tampilkan grafik
-fig.show()
+
+# ============================================
+# 11. TAMPILKAN GRAFIK DI STREAMLIT
+# ============================================
+
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
